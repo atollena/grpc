@@ -1,0 +1,56 @@
+third_party/protobuf3.patchFrom 33ccd807fbc22505dbd92fc78bc9970e00518996 Mon Sep 17 00:00:00 2001
+From: Son Luong Ngoc <sluongng@gmail.com>
+Date: Thu, 23 Mar 2023 09:42:46 +0700
+Subject: [PATCH] Fix protoc_nowkt linking on MacOS
+
+Depending on how the local cc toolchain is setup on macos, the core
+foundation framework might not be available while linking protoc_nowkt.
+
+This results in a few _CF symbols being interpreted as dynamic load and
+is set to the binary's flat-namespace, causing runtime errors during
+susequent actions such as gen_wkt_cc_sources.
+
+```bash
+> otool -dyld_info bazel-out/darwin_arm64-opt-exec-2B5CBBC6/bin/external/com_google_protobuf/src/google/protobuf/compiler/protoc_nowkt | grep '_CF'
+__DATA_CONST __got         0x10035C038 0x8010000000000007 bind   0x0      flat-namespace _CFRelease
+__DATA_CONST __got         0x10035C040 0x8010000000000008 bind   0x0      flat-namespace _CFStringGetCString
+__DATA_CONST __got         0x10035C048 0x8010000000000009 bind   0x0      flat-namespace _CFStringGetLength
+__DATA_CONST __got         0x10035C050 0x801000000000000A bind   0x0      flat-namespace _CFStringGetMaximumSizeForEncoding
+__DATA_CONST __got         0x10035C058 0x801000000000000B bind   0x0      flat-namespace _CFTimeZoneCopyDefault
+__DATA_CONST __got         0x10035C060 0x801000000000000C bind   0x0      flat-namespace _CFTimeZoneGetName
+```
+
+Tell the linker to use CoreFoundation framework explicitly fixes this
+issue.
+
+```bash
+> otool -dyld_info bazel-out/darwin_arm64-opt-exec-2B5CBBC6/bin/external/com_google_protobuf/src/google/protobuf/compiler/protoc_nowkt | grep '_CF'
+__DATA_CONST __got         0x10035C038 0x8010000000000007 bind   0x0      CoreFoundation _CFRelease
+__DATA_CONST __got         0x10035C040 0x8010000000000008 bind   0x0      CoreFoundation _CFStringGetCString
+__DATA_CONST __got         0x10035C048 0x8010000000000009 bind   0x0      CoreFoundation _CFStringGetLength
+__DATA_CONST __got         0x10035C050 0x801000000000000A bind   0x0      CoreFoundation _CFStringGetMaximumSizeForEncoding
+__DATA_CONST __got         0x10035C058 0x801000000000000B bind   0x0      CoreFoundation _CFTimeZoneCopyDefault
+__DATA_CONST __got         0x10035C060 0x801000000000000C bind   0x0      CoreFoundation _CFTimeZoneGetName
+```
+
+closes #12173
+---
+ build_defs/cpp_opts.bzl | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/build_defs/cpp_opts.bzl b/build_defs/cpp_opts.bzl
+index f95c3e25790..5a32371dacf 100644
+--- a/build_defs/cpp_opts.bzl
++++ b/build_defs/cpp_opts.bzl
+@@ -36,6 +36,11 @@ LINK_OPTS = select({
+         # Suppress linker warnings about files with no symbols defined.
+         "-ignore:4221",
+     ],
++    "@platforms//os:macos": [
++        "-lpthread",
++        "-lm",
++        "-framework CoreFoundation",
++    ],
+     "//conditions:default": [
+         "-lpthread",
+         "-lm",

@@ -263,6 +263,8 @@ def grpc_deps():
                 "@com_github_grpc_grpc//third_party:protobuf.patch",
                 # workaround for https://github.com/protocolbuffers/upb/issues/1239
                 "@com_github_grpc_grpc//third_party:protobuf2.patch",
+                # workaround for https://github.com/protocolbuffers/protobuf/issues/12173
+                "@com_github_grpc_grpc//third_party:protobuf3.patch",
             ],
             patch_args = ["-p1"],
         )
